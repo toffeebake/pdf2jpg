@@ -1,0 +1,250 @@
+<!doctype html>
+
+<head>
+    <meta charset="utf-8" />
+    <!-- no robots crawling -->
+    <meta name="robots" content="noindex">
+
+    <!-- required JS scripts -->
+    <script src="pdf.js"></script>
+
+    <title>pdf2jpg</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        @media only screen and (min-width: 960px) {
+            body {
+                max-width: 50%;
+            }
+        }
+
+        body {
+            margin: 1em;
+            font-family: sans-serif;
+        }
+
+        #dragdrop {
+            margin-top: 1em;
+            margin-bottom: 1em;
+            padding: 3em;
+            border: dashed;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .dragover {
+            background-color: black;
+            color: white;
+        }
+
+        details {
+            margin: 1em auto 1em auto;
+            border-top: 1px solid gray;
+            padding-top: 1em;
+        }
+
+        button {
+            margin: 0.5em;
+            background: none;
+            padding: 0;
+            border: 0;
+            text-decoration: underline;
+            cursor: pointer;
+            color: rgb(0, 0, 238); 
+        }
+
+        button:disabled {
+            color: rgb(0, 0, 0, 0.5);
+            text-decoration: none;
+            cursor: default;
+        }
+
+        #upload {
+            width: 100%; 
+            padding: 3em auto 3em auto;
+        }
+
+        #settings {
+            padding-top: 1em;
+        }
+        #settings div {
+            display: block;
+            margin-bottom: 1em;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>pdf2jpg</h1>
+    <p>Convert pdf to jpg right in your browser without uploading any files to a server.</p>
+    <div id="dragdrop">
+        Drag and drop 1 pdf file here
+    </div>
+    <div id="upload">
+        <input type="file" id="input" accept=".pdf">
+    </div>
+    <div id="settings">
+        <div>
+            <label for="pageno">Page number: </label>
+            <input type="number" id="pageno" value="1">
+            <p id="maxpages"></p>
+        </div>
+        <div>
+            <label for="quality">JPG quality (between 0 to 1): </label>
+            <input type="number" id="quality" min="0" max="1" value="0.75">
+        </div>
+        <div>
+            <label for="width">JPG dimensions (only for the centered image): </label>
+            <input type="number" id="width" value="960">
+            <span>x</span>
+            <input type="number" id="height" value="640">
+        </div>
+        <button id="generate" disabled>generate</button>
+        <button id="generatec" disabled>generate centered</button>
+    </div>
+    <div id="preview">
+
+    </div>
+</body>
+
+<script>
+    const preview = document.getElementById("preview");
+    const inputElement = document.getElementById("input");
+    inputElement.addEventListener("change", handleUpload, false);
+
+    const dragdrop = document.getElementById("dragdrop")
+    dragdrop.addEventListener("drop", handleDrag, false)
+    dragdrop.addEventListener("dragover", handleDragover, false)
+    dragdrop.addEventListener("dragleave", handleDragleave, false)
+
+    const generate = document.getElementById('generate')
+    generate.addEventListener("click", generatejpg, false)
+
+    const generatec = document.getElementById('generatec')
+    generatec.addEventListener("click", generatecenteredjpg, false)
+
+    // dragover handlers
+    function handleDragover(event) {
+        event.preventDefault();
+        this.classList.add('dragover');
+    }
+
+    function handleDragleave(event) {
+        event.preventDefault();
+        this.classList.remove('dragover');
+    }
+
+    function handleDrag(event) {
+        event.preventDefault();
+        this.classList.remove('dragover');
+        const fileList = event.dataTransfer.files;
+        zipAll.removeAttribute('disabled')
+        handleFiles(fileList);
+    }
+    // end of dragover handlers
+
+    var pdfdoc;
+    var pdfjsLib = window['pdfjs-dist/build/pdf'];
+
+    function handleUpload(event) {
+        const fileList = this.files; /* now you can work with the file list */
+        // load pdf
+        var loadingtask = pdfjsLib.getDocument({ url: URL.createObjectURL(fileList[0]) });
+        loadingtask.promise.then(function(pdf) {
+            pdfdoc = pdf;
+        })
+        generate.removeAttribute('disabled');
+        generatec.removeAttribute('disabled');
+    }
+
+    async function generatejpg(event) {
+        const pageno = parseInt(document.getElementById("pageno").value);
+        pdfdoc.getPage(pageno).then(function(page) {
+            const div = document.createElement("details");
+            let d = new Date();
+            div.id = parseInt(d.getTime() / 1000)
+            div.setAttribute('open', '')
+            preview.appendChild(div)
+
+            const summary = document.createElement("summary")
+            summary.innerText = d.toString();
+            div.appendChild(summary)
+
+            const link = document.createElement("a")
+            link.innerText = "generating..."
+            link.setAttribute('disabled', '')
+            div.appendChild(link)
+
+            var scale = 1.5;
+            var viewport = page.getViewport({scale: scale});
+            const canvas = document.createElement("canvas");
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            div.appendChild(canvas);
+
+            var context = canvas.getContext("2d");
+            page.render({canvasContext: context, viewport:viewport});
+
+            const quality = parseInt(document.getElementById("quality").value);
+            link.setAttribute('href', canvas.toDataURL("image/jpeg", quality));
+            link.setAttribute('download', `page${pageno}.jpeg`)
+            link.innerText = `download`;
+            link.setAttribute('disabled', null)
+        })
+    }
+
+    async function generatecenteredjpg(event) {
+        const pageno = parseInt(document.getElementById("pageno").value);
+        pdfdoc.getPage(pageno).then(function(page) {
+            const div = document.createElement("details");
+            let d = new Date();
+            div.id = parseInt(d.getTime() / 1000)
+            div.setAttribute('open', '')
+            preview.appendChild(div)
+
+            const summary = document.createElement("summary")
+            summary.innerText = d.toString();
+            div.appendChild(summary)
+
+            const link = document.createElement("a")
+            link.innerText = "generating..."
+            link.setAttribute('disabled', '')
+            div.appendChild(link)
+
+            var scale = 1.5;
+            var viewport = page.getViewport({scale: scale});
+            const canvas = document.createElement("canvas");
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            var context = canvas.getContext("2d");
+            var rendertask = page.render({canvasContext: context, viewport:viewport})
+            rendertask.promise.then(function() {
+                const newcanvas = document.createElement("canvas");
+                newcanvas.height = parseInt(document.getElementById("height").value);
+                newcanvas.width = parseInt(document.getElementById("width").value);
+                var newcontext = newcanvas.getContext("2d");
+                newcontext.fillStyle = "white";
+                newcontext.fillRect(0, 0, newcanvas.width, newcanvas.height);
+
+                // calculation
+                const scale_factor = canvas.height / newcanvas.height;
+                console.log(scale_factor);
+                const new_width = Math.floor( canvas.width / scale_factor);
+                const new_x_coordinate = Math.floor((newcanvas.width - new_width) / 2);
+                newcontext.drawImage(canvas, new_x_coordinate, 0, new_width, newcanvas.height);
+
+                div.appendChild(newcanvas);
+
+                const quality = parseInt(document.getElementById("quality").value);
+                link.setAttribute('href', newcanvas.toDataURL("image/jpeg", quality));
+                link.setAttribute('download', `page${pageno}.jpeg`)
+                link.innerText = `download`;
+                link.setAttribute('disabled', null)
+            });
+        })
+    }
+</script>
+</html>
